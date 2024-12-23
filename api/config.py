@@ -21,6 +21,7 @@ class APISettings(BaseSettings):
     jwt_expire_min: int = 1440
     aes_key_16: str = "0123456789ABCDEF"
     aes_key_32: str = "0123456789ABCDEF0123456789ABCDEF"
+    default_passwd: str = "qwe321"
 
     # FastAPI应用配置
     docs_url: str = "/docs"

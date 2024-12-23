@@ -32,7 +32,7 @@ class User(ModelPrimaryKeyID, ModelLogicDeleted, ModelBase):
         comment="用户账号"
     )
 
-    nick_name: M[str] = mc(
+    nickname: M[str] = mc(
         String(64),
         default="",
         comment="用户昵称",
