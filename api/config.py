@@ -25,7 +25,7 @@ class APISettings(BaseSettings):
 
     # FastAPI应用配置
     docs_url: str = "/docs"
-    redoc_url: str = ""
+    redoc_url: str = "/redoc"
     title: str = "UserCenterAPI"
     version: str = "1.0.0"
 
