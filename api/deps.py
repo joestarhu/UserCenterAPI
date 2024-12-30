@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from api.config import settings
 from api.security import jwt_api
+from api.errcode import APIErr
 
 engine = create_engine(**settings.db_settings)
 localSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
@@ -28,6 +29,8 @@ class JwtPayload:
 
 @dataclass
 class Pagination:
+    """分页
+    """
     page_idx: int = 1
     page_size: int = 10
 
@@ -36,9 +39,18 @@ class Pagination:
 class Rsp:
     """RESTFUL API请求返回结果
     """
-    code: int = 0
-    message: str = "Succeed"
+    code: int = APIErr.NO_ERROR["code"]
+    message: str = APIErr.NO_ERROR["message"]
     data: Any | None = None
+
+
+@dataclass
+class Permission:
+    """权限
+    """
+    path: str
+    name: str
+    scope: str
 
 
 @dataclass
@@ -48,21 +60,21 @@ class Actor:
     org_uuid: str
 
 
-def db_session() -> Generator:
+def get_db_session() -> Generator:
     """获取数据库会话Session
     """
     with localSession() as session:
         yield session
 
 
-def page_info(page_idx: int = Query(default=1, description="页数", ge=0),
-              page_size: int = Query(default=10, description="每页数量", ge=0)) -> Pagination:
+def get_page_info(page_idx: int = Query(default=1, description="页数", ge=0),
+                  page_size: int = Query(default=10, description="每页数量", ge=0)) -> Pagination:
     return Pagination(page_idx=page_idx, page_size=page_size)
 
 
 def get_actor_info(security_scope: SecurityScopes,
                    token=Depends(oauth2),
-                   session=Depends(db_session)) -> Actor:
+                   session=Depends(get_db_session)) -> Actor:
     try:
         payload = jwt_api.decode(token)
         actor = Actor(
@@ -71,10 +83,12 @@ def get_actor_info(security_scope: SecurityScopes,
             org_uuid=payload["org_uuid"]
         )
 
-        allow_scopes = []
         # 如果是超级管理员用户,则无需鉴权
         if payload["is_admin"]:
             return actor
+
+        # 获取用户的可用授权范围
+        allow_scopes = []
 
         # 如果调用接口有权限,则需要鉴权.
         if security_scope.scopes:

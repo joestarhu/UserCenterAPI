@@ -57,7 +57,7 @@ class User(ModelPrimaryKeyID, ModelLogicDeleted, ModelBase):
     )
 
 
-class UserAuth(ModelPrimaryKeyID, ModelBase):
+class UserAuth(ModelPrimaryKeyID, ModelLogicDeleted, ModelBase):
     __tablename__ = "t_user_auth"
     __table_args__ = (
         UniqueConstraint("user_uuid", "auth_type",
