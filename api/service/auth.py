@@ -1,73 +1,113 @@
 from dataclasses import asdict
-from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException, Depends, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
-from api.deps import Rsp, JwtPayload, Pagination, db_session
+from api.config import settings
+from api.deps import Rsp, JwtPayload, get_db_session
 from api.errcode import APIErr
 from api.security import client_aes_api, hash_api, jwt_api
-from api.schema.user import UserAPI, OptUserStatus
+from api.model.user import User, UserAuth, OptUserStatus
+from api.model.org import Org, OrgUser, OptOrgUserStatus
+from api.schema.user import UserAPI
 from api.schema.org import OrgAPI
-from api.model.org import Org
+
 
 api = APIRouter(prefix="/auth")
 
 
 class PasswordLogin(BaseModel):
-    account: str = Field(description="用户账号")
-    password_enc: str = Field(description="密码,加密传输")
-    client_id: str = Field(default="")
-    client_secret: str = Field(default="")
+    account: str = Field(description=User.account.comment,
+                         max_length=User.account.type.length)
+    password_enc: str = Field(description="密码(需加密)",
+                              max_length=UserAuth.auth_value.type.length)
 
 
-def password_login(session: Session, account: str, password: str) -> Rsp:
-    """密码登录
+def password_login(session: Session, account: str, password: str, org_uuid: str = None) -> Rsp:
+    r"""通过密码完成认证
+
+    Parameters:
+        session:数据库会话
+        account:账号
+        password:密码
+        org_uuid:指定登录的组织UUID
+
+    Return:
+        Rsp{
+            code: 业务返回码
+            message: 业务返回信息
+            data:jwt的token字符
+        }
     """
+    # 获取账号认证信息
+    account_auth = UserAPI.get_account_auth_info(session, account)
 
-    user_auth = UserAPI.get_user_auth_info(session, account)
-
-    if user_auth is None or hash_api.verify(password, user_auth["auth_value"]) == False:
+    # 无数据或密码对不上
+    if not account_auth or not hash_api.verify(password, account_auth["auth_value"]):
         return Rsp(**APIErr.WRONG_ACCOUNT_PASSWD)
 
-    if user_auth["user_status"] == OptUserStatus.DISABLE.value:
+    # 如果账号状态不可用
+    if OptUserStatus.DISABLE.value == account_auth["user_status"]:
         return Rsp(**APIErr.ACCOUNT_STATUS_DISABLE)
 
-    user_uuid = user_auth["user_uuid"]
-    payload = JwtPayload(user_uuid=user_uuid)
+    user_uuid = account_auth["user_uuid"]
+    is_admin = False
 
-    org_list = OrgAPI.get_user_org_list(session, user_uuid, Pagination(),
-                                        Org.org_uuid, Org.org_owner)
+    if org_uuid:
+        # 如果指定了登录的组织UUID
+        select_fields = [OrgUser.org_user_status, Org.org_owner]
+        org_user = OrgAPI.get_org_user_detail(
+            session, org_uuid, user_uuid, select_fields)
+        if not org_user:
+            # 组织下无该用户
+            return Rsp(**APIErr.WRONG_ACCOUNT_PASSWD)
+        if OptOrgUserStatus.DISABLE.value == org_user["org_user_status"]:
+            # 组织下该用户账号被停用
+            return Rsp(**APIErr.ORG_USER_STATUS_DISABLE)
+        is_admin = True if org_user["org_owner"] == user_uuid else False
+    else:
+        select_fields = [OrgUser.org_uuid,
+                         OrgUser.org_user_status, Org.org_owner]
+        user_org_list = UserAPI.get_user_org_list(
+            session, user_uuid, select_fields)
 
-    if org_list and len(org_list["records"]) == 1:
-        payload.org_uuid = org_list["records"][0]["org_uuid"]
-        payload.is_admin = True if org_list["records"][0]["org_owner"] == user_uuid else False
+        if 1 == len(user_org_list) and OptOrgUserStatus.ENABLE.value == user_org_list[0]["org_user_status"]:
+            # 仅有一个组织,且账户未被组织停用
+            org_uuid = user_org_list[0]["org_uuid"]
+            is_admin = True if user_org_list[0]["org_owner"] == user_uuid else False
+
+    payload = JwtPayload(user_uuid=user_uuid,
+                         org_uuid=org_uuid,
+                         is_admin=is_admin)
     data = jwt_api.encode(**asdict(payload))
-
     return Rsp(data=data)
 
 
-@api.post("/docs_login")
-async def docs_login(
-    req_data=Depends(OAuth2PasswordRequestForm),
-    session=Depends(db_session)
-) -> dict:
-    try:
-        rsp = password_login(session, req_data.username, req_data.password)
-    except Exception as e:
-        raise HTTPException(500, detail=f"{e}")
-
-    return {"access_token": rsp.data, "token_type": "bearer"}
-
-
-@api.post("/login", response_model=Rsp, summary="登录")
-async def login(
-    req_data: PasswordLogin,
-    session=Depends(db_session)
+@api.post("/login", summary="登录")
+def login(
+    session=Depends(get_db_session),
+    req_data: PasswordLogin = Body()
 ) -> Rsp:
     try:
+        # 客户端过来的是加密的密码,需要先解密
         password = client_aes_api.decrypt(req_data.password_enc)
         rsp = password_login(session, req_data.account, password)
     except Exception as e:
-        raise HTTPException(500, detail=f"{e}")
-
+        raise HTTPException(500, f"{e}")
     return rsp
+
+
+@api.post("/docs_login", summary="网页登录(后续移除)")
+async def docs_login(
+    session=Depends(get_db_session),
+    req_data=Depends(OAuth2PasswordRequestForm)
+) -> dict:
+    # 如果没有设置swaggerUI,则该功能不启用,默认直接返回{}
+    if not settings.docs_url:
+        return {}
+
+    try:
+        rsp = password_login(session, req_data.username, req_data.password)
+    except Exception as e:
+        raise HTTPException(500, f"{e}")
+    return {"access_token": rsp.data, "token_type": "bearer"}
