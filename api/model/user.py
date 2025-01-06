@@ -3,12 +3,12 @@ from sqlalchemy import String, Integer, UniqueConstraint
 from api.model.base import ModelBase, ModelPrimaryKeyID, ModelLogicDeleted, M, mc
 
 
-class OptUserStatus(int, Enum):
+class OptUserStatus(Enum):
     ENABLE: int = 0
     DISABLE: int = 1
 
 
-class OptUserAuthType(int, Enum):
+class OptUserAuthType(Enum):
     PASSWORD: int = 0
     DINGTALK: int = 1
 
@@ -66,7 +66,7 @@ class UserAuth(ModelPrimaryKeyID, ModelLogicDeleted, ModelBase):
     )
 
     user_uuid: M[str] = mc(
-        String(32),
+        User.user_uuid.type,
         default="",
         comment="用户UUID"
     )
