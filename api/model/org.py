@@ -1,6 +1,7 @@
 from enum import Enum
 from sqlalchemy import String, Integer, UniqueConstraint, Boolean
 from api.model.base import ModelBase, ModelPrimaryKeyID, ModelLogicDeleted, M, mc
+from api.model.user import User
 
 
 class OptOrgStatus(int, Enum):
@@ -33,7 +34,7 @@ class Org(ModelPrimaryKeyID, ModelLogicDeleted, ModelBase):
     )
 
     org_owner: M[str] = mc(
-        String(32),
+        User.user_uuid.type,
         default="",
         comment="组织所有者UUID"
     )
@@ -59,13 +60,13 @@ class OrgUser(ModelPrimaryKeyID, ModelLogicDeleted, ModelBase):
     )
 
     org_uuid: M[str] = mc(
-        String(32),
+        Org.org_uuid.type,
         default="",
         comment="组织UUID"
     )
 
     user_uuid: M[str] = mc(
-        String(32),
+        User.user_uuid.type,
         default="",
         comment="用户UUID"
     )
