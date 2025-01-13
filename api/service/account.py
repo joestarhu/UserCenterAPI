@@ -9,13 +9,13 @@ from api.schema.user import UserAPI
 api = APIRouter(prefix="/account")
 
 # 权限对象
-permission = (
-    API_LIST := Permission(path="/list", name="获取账号列表", scope="account:list"),
+permission = [
+    API_LIST := Permission(path="/list", name="获取账号列表信息", scope="account:list"),
     API_DETAIL := Permission(path="/detail", name="获取账号详情", scope="account:detail"),
     API_CREATE := Permission(path="/create", name="创建账号", scope="account:create"),
     API_UPDATE := Permission(path="/update", name="更新账号", scope="account:update"),
     API_DELETE := Permission(path="/delete", name="删除账号", scope="account:delete")
-)
+]
 
 
 class AccountCreate(BaseModel):
