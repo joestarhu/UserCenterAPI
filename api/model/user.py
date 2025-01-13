@@ -3,12 +3,12 @@ from sqlalchemy import String, Integer, UniqueConstraint
 from api.model.base import ModelBase, ModelPrimaryKeyID, ModelLogicDeleted, M, mc
 
 
-class OptUserStatus(Enum):
+class OptUserStatus(int, Enum):
     ENABLE: int = 0
     DISABLE: int = 1
 
 
-class OptUserAuthType(Enum):
+class OptUserAuthType(int, Enum):
     PASSWORD: int = 0
     DINGTALK: int = 1
 
