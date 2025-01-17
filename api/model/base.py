@@ -7,7 +7,6 @@ class ModelPrimaryKeyID:
     id: M[int] = mc(
         BigInteger,
         primary_key=True,
-        autoincrement=True,
         comment="ID"
     )
 
