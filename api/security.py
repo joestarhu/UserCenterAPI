@@ -13,3 +13,15 @@ def create_uuid() -> str:
     """随机创建一个uuid
     """
     return "".join(str(uuid4()).split("-"))
+
+
+def create_usr_uuid() -> str:
+    return "usr_"+create_uuid()
+
+
+def create_org_uuid() -> str:
+    return "org_"+create_uuid()
+
+
+def create_app_uuid() -> str:
+    return "app_"+create_uuid()
