@@ -1,9 +1,9 @@
 from enum import Enum
 from sqlalchemy import String, Integer, UniqueConstraint
-from api.model.base import ModelBase, ModelPrimaryKeyID, ModelLogicDeleted, M, mc
+from api.model.base import ModelBase, ModelPrimaryKeyID, M, mc
 
 
-class OptUserStatus(int, Enum):
+class OptAccountStatus(int, Enum):
     ENABLE: int = 0
     DISABLE: int = 1
 
@@ -13,14 +13,14 @@ class OptUserAuthType(int, Enum):
     DINGTALK: int = 1
 
 
-class User(ModelPrimaryKeyID, ModelLogicDeleted, ModelBase):
+class User(ModelPrimaryKeyID, ModelBase):
     __tablename__ = "t_user"
     __table_args__ = (
         dict(comment="用户信息")
     )
 
     user_uuid: M[str] = mc(
-        String(32),
+        String(36),
         default="",
         unique=True,
         comment="用户UUID"
@@ -50,14 +50,14 @@ class User(ModelPrimaryKeyID, ModelLogicDeleted, ModelBase):
         comment="用户头像URL"
     )
 
-    user_status: M[int] = mc(
+    account_status: M[int] = mc(
         Integer,
-        default=OptUserStatus.ENABLE.value,
-        comment="用户状态"
+        default=OptAccountStatus.ENABLE,
+        comment="用户账号状态"
     )
 
 
-class UserAuth(ModelPrimaryKeyID, ModelLogicDeleted, ModelBase):
+class UserAuth(ModelPrimaryKeyID, ModelBase):
     __tablename__ = "t_user_auth"
     __table_args__ = (
         UniqueConstraint("user_uuid", "auth_type",

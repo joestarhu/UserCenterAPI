@@ -11,14 +11,6 @@ class ModelPrimaryKeyID:
     )
 
 
-class ModelLogicDeleted:
-    is_deleted: M[bool] = mc(
-        Boolean,
-        default=False,
-        comment="数据逻辑删除标识"
-    )
-
-
 class ModelBase(DeclarativeBase):
     created_at: M[datetime] = mc(
         DateTime,
@@ -31,4 +23,10 @@ class ModelBase(DeclarativeBase):
         default=func.now(),
         onupdate=func.now(),
         comment="数据更新时间"
+    )
+
+    is_deleted: M[bool] = mc(
+        Boolean,
+        default=False,
+        comment="数据逻辑删除标识"
     )
