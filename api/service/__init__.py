@@ -10,7 +10,7 @@ for api, tags, api_permission in [
     (account.api, ["账号服务"], account.permission),
     (app.api, ["应用服务"], app.permission),
     (org.api, ["组织服务"], org.permission),
-    (role.api, ["角色服务"], role.permission),
+    # (role.api, ["角色服务"], role.permission),
 ]:
     routers.include_router(api, tags=tags)
 

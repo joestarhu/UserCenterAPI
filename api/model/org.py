@@ -55,20 +55,18 @@ class Org(ModelPrimaryKeyID,  ModelBase):
 class OrgUser(ModelPrimaryKeyID, ModelBase):
     __tablename__ = "t_org_user"
     __table_args__ = (
-        UniqueConstraint("org_uuid", "user_uuid", name="uni_org_user"),
+        UniqueConstraint("org_id", "user_id", name="uni_org_user"),
         dict(comment="组织用户信息")
     )
 
-    org_uuid: M[str] = mc(
-        Org.org_uuid.type,
-        default="",
-        comment="组织UUID"
+    org_id: M[int] = mc(
+        Org.id.type,
+        comment="组织ID"
     )
 
-    user_uuid: M[str] = mc(
-        User.user_uuid.type,
-        default="",
-        comment="用户UUID"
+    user_id: M[int] = mc(
+        User.id.type,
+        comment="用户ID"
     )
 
     org_user_nickname: M[str] = mc(

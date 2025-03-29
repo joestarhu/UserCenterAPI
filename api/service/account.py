@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Security, Depends, Query, Body
 from api.deps import Permission, Rsp, get_actor_info, get_page_info
 from api.security import server_aes_api
-from api.model.user import User, OptUserStatus
+from api.model.user import User, OptAccountStatus
 from api.schema.user import UserAPI
 
 # 路由对象
@@ -21,6 +21,7 @@ permission = [
 class AccountCreate(BaseModel):
     account: str = Field(description=User.account.comment,
                          pattern=r"^[a-zA-Z][a-zA-Z0-9_]*$",
+                         min_length=3,
                          max_length=User.account.type.length)
     nickname: str = Field(description=User.nickname.comment,
                           min_length=1,
@@ -28,8 +29,8 @@ class AccountCreate(BaseModel):
     phone: str = Field(description="手机号",
                        default="",
                        pattern=r"^1[3-9]\d{9}$|^$")
-    user_status: OptUserStatus = Field(description=User.user_status.comment,
-                                       default=OptUserStatus.ENABLE)
+    account_status: OptAccountStatus = Field(description=User.account_status.comment,
+                                             default=OptAccountStatus.ENABLE)
 
 
 class AccountUpdate(BaseModel):
@@ -37,7 +38,8 @@ class AccountUpdate(BaseModel):
     nickname: str = Field(description=User.nickname.comment,
                           min_length=1,
                           max_length=User.nickname.type.length)
-    user_status: OptUserStatus = Field(description=User.user_status.comment)
+    account_status: OptAccountStatus = Field(description=User.account_status.comment,
+                                             default=OptAccountStatus.ENABLE)
 
 
 class AccountDelete(BaseModel):
@@ -50,12 +52,12 @@ def get_account_list(
         pagination=Depends(get_page_info),
         account: str = Query(default=None, description=User.account.comment),
         nickname: str = Query(default=None, description=User.nickname.comment),
-        user_status: OptUserStatus = Query(
-            default=None, description=User.user_status.comment)
+        account_status: OptAccountStatus = Query(
+            default=None, description=User.account_status.comment)
 ) -> Rsp:
     try:
         data = UserAPI.get_account_list(
-            actor.session, pagination, account, nickname, user_status)
+            actor.session, pagination, account, nickname, account_status)
     except Exception as e:
         raise HTTPException(500, f"{e}")
     return Rsp(data=data)
@@ -85,7 +87,7 @@ def create_account(
 
         user = User(account=req_data.account,
                     nickname=req_data.nickname,
-                    user_status=req_data.user_status,
+                    account_status=req_data.account_status,
                     phone_enc=phone_enc)
 
         result = UserAPI.create_account(actor.session, user)
@@ -101,8 +103,7 @@ def update_account(
 ) -> Rsp:
     try:
         result = UserAPI.update_account(
-            actor.session, req_data.user_uuid, req_data.nickname, req_data.user_status)
-
+            actor.session, req_data.user_uuid, req_data.nickname, req_data.account_status)
     except Exception as e:
         raise HTTPException(500, f"{e}")
     return Rsp(**result)

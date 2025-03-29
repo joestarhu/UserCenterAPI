@@ -1,14 +1,14 @@
-from fastapi import APIRouter, HTTPException, Query, Depends, Security
-from api.deps import Rsp, page_info, get_actor_info
-from api.model.user import OptUserStatus
-from api.schema.user import UserAPI
-from api.service.base import ServiceInfo
+# from fastapi import APIRouter, HTTPException, Query, Depends, Security
+# from api.deps import Rsp, page_info, get_actor_info
+# from api.model.user import OptUserStatus
+# from api.schema.user import UserAPI
+# from api.service.base import ServiceInfo
 
-api = APIRouter(prefix="/user")
+# api = APIRouter(prefix="/user")
 
-services = {
-    f"{api.prefix}/list": ServiceInfo(name="获取用户列表", identify="user:list")
-}
+# services = {
+#     f"{api.prefix}/list": ServiceInfo(name="获取用户列表", identify="user:list")
+# }
 
 
 # @api.get("/list", response_model=Rsp, summary=services[f"{api.prefix}/list"].name)

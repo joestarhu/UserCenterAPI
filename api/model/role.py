@@ -1,6 +1,7 @@
 from enum import Enum
 from sqlalchemy import String, Integer, UniqueConstraint
-from api.model.base import ModelBase, ModelPrimaryKeyID, ModelLogicDeleted, M, mc
+from api.model.base import ModelBase, ModelPrimaryKeyID,  M, mc
+from api.model.app import App
 from api.model.org import Org
 from api.model.user import User
 
@@ -10,10 +11,11 @@ class OptRoleStatus(int, Enum):
     DISABLE: int = 1
 
 
-class Role(ModelPrimaryKeyID, ModelLogicDeleted, ModelBase):
+class Role(ModelPrimaryKeyID,  ModelBase):
     __tablename__ = "t_role"
     __table_args__ = (
-        UniqueConstraint("role_name", "role_org_uuid", name="uni_role"),
+        UniqueConstraint("role_name", "role_org_uuid",
+                         "app_uuid", name="uni_role"),
         dict(comment="角色信息")
     )
 
@@ -35,10 +37,15 @@ class Role(ModelPrimaryKeyID, ModelLogicDeleted, ModelBase):
         comment="角色状态"
     )
 
+    app_uuid: M[str] = mc(
+        App.app_uuid.type,
+        comment="角色所属应用UUID"
+    )
+
     role_org_uuid: M[str] = mc(
         Org.org_uuid.type,
         default="",
-        comment="角色所属组织UUID"
+        comment="角色专属属组织UUID"
     )
 
 

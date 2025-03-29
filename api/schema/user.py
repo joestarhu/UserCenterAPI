@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 from api.config import settings
 from api.deps import Pagination
 from api.errcode import APIErr
-from api.security import server_aes_api, hash_api, create_uuid
-from api.model.user import User, UserAuth, OptUserStatus, OptUserAuthType
-from api.model.org import Org, OrgUser
+from api.security import server_aes_api, hash_api, create_usr_uuid
+from api.model.user import User, UserAuth, OptAccountStatus, OptUserAuthType
+from api.model.org import Org, OrgUser, OptOrgStatus
 
 
 fmt_rules = [
@@ -16,47 +16,53 @@ fmt_rules = [
 
 
 def check_account_unique(session: Session, user_uuid: str, account: str = None, phone_enc: str = None, is_insert: bool = False) -> APIErr:
-    r"""判断账号是否重复
+    r"""判断账号是否重复(UUID唯一,账号唯一,手机号唯一)
     """
+
+    # 唯一性逻辑判断规则,uuid,账号,手机号唯一
+    check_rules = {
+        # 表字段:(唯一性检测条件变量,SQL条件语句,异常返回码)
+        User.user_uuid.name: (is_insert, User.user_uuid == user_uuid, APIErr.USER_UUID_EXISTED),
+        User.account.name: (account, User.account == account, APIErr.ACCOUNT_EXISTSED),
+        User.phone_enc.name: (phone_enc, User.phone_enc == phone_enc, APIErr.PHONE_EXISTED),
+    }
+
     if is_insert:
-        stmt = select(User.user_uuid, User.account, User.phone_enc).where(
-            User.is_deleted == False)
+        # 新增情况下的逻辑
+        stmt = select(User.user_uuid, User.account, User.phone_enc)
     else:
+        # 修改情况下的逻辑
         stmt = select(User.account, User.phone_enc).where(
-            User.is_deleted == False,
             User.user_uuid != user_uuid)
 
-    # uuid,账号,手机号唯一
-    expressions = [expression for condition, expression in (
-        (account, User.account == account),
-        (phone_enc, User.phone_enc == phone_enc),
-        (is_insert, User.user_uuid == user_uuid),
-    ) if condition]
+    # 逻辑删除数据不要
+    stmt = stmt.where(User.is_deleted == False)
 
+    # 查询条件组装
+    expressions = [expression for condition, expression,
+                   _ in check_rules.values() if condition]
     stmt = stmt.where(or_(*expressions))
 
+    # 结果校验
     for row in ORM.mapping(session, stmt):
-        if account and row["account"] == account:
-            return APIErr.ACCOUNT_EXISTSED
-        if phone_enc and row["phone_enc"] == phone_enc:
-            return APIErr.PHONE_EXISTED
-        if is_insert and row["user_uuid"] == user_uuid:
-            return APIErr.USER_UUID_EXISTED
+        for field, (condition, _, err) in check_rules.items():
+            if condition and row[field] == condition:
+                return err
 
     return APIErr.NO_ERROR
 
 
 def check_superadmin_account(session: Session, user_uuid: str) -> bool:
-    r"""判断是否是超级管理员帐户
+    r"""判断是否是超级管理员帐户(管理员组织下的组织拥有者视为超级管理员)
     """
     stmt = select(
         User.id
     ).join(
-        Org, User.user_uuid == Org.org_owner
+        Org, User.user_uuid == Org.org_owner_uuid
     ).where(
+        User.is_deleted == False,
         Org.is_deleted == False,
         Org.is_admin == True,
-        User.is_deleted == False,
         User.user_uuid == user_uuid
     )
 
@@ -83,16 +89,16 @@ class UserAPI:
             None:无数据
             Dict:用户认证信息{
                 user_uuid:用户uuid
-                user_status:用户状态
+                account_status:用户账号状态
                 auth_value:账号认证值
             }
         """
         stmt = select(
             User.user_uuid,
-            User.user_status,
+            User.account_status,
             UserAuth.auth_value
         ).join(
-            UserAuth, User.user_uuid == UserAuth.user_uuid
+            UserAuth, User.id == UserAuth.user_id
         ).where(
             User.is_deleted == False,
             UserAuth.is_deleted == False,
@@ -112,18 +118,23 @@ class UserAPI:
         r"""获取用户的组织信息
         """
         select_fields = [
-            OrgUser.org_uuid,
+            Org.org_uuid,
+            Org.org_name,
             OrgUser.org_user_status,
         ] if not select_fields else select_fields
 
         stmt = select(
             *select_fields
         ).join(
-            Org, OrgUser.org_uuid == Org.org_uuid
+            Org, OrgUser.org_id == Org.id
+        ).join(
+            User, OrgUser.user_id == User.id
         ).where(
             Org.is_deleted == False,
+            Org.org_status == OptOrgStatus.ENABLE.value,
+            User.is_deleted == False,
             OrgUser.is_deleted == False,
-            OrgUser.user_uuid == user_uuid
+            User.user_uuid == user_uuid
         )
 
         return ORM.all(session, stmt)
@@ -134,7 +145,7 @@ class UserAPI:
         pagination: Pagination,
         account: str = None,
         nickname: str = None,
-        user_status: OptUserStatus = None,
+        account_status: OptAccountStatus = None,
         select_fields: list = None
     ):
         select_fields = [
@@ -142,7 +153,7 @@ class UserAPI:
             User.account,
             User.nickname,
             User.phone_enc.label("phone"),
-            User.user_status,
+            User.account_status,
             User.created_at,
             User.updated_at
         ] if not select_fields else select_fields
@@ -150,7 +161,7 @@ class UserAPI:
         expresions = [expression for condition, expression in (
             (account is not None, User.account.ilike(f"%{account}%")),
             (nickname is not None, User.nickname.ilike(f"%{nickname}%")),
-            (user_status is not None, User.user_status == user_status)
+            (account_status is not None, User.account_status == account_status)
         ) if condition]
 
         stmt = select(
@@ -179,7 +190,7 @@ class UserAPI:
             User.account,
             User.nickname,
             User.phone_enc.label("phone"),
-            User.user_status,
+            User.account_status,
             User.avatar_url,
             User.created_at,
             User.updated_at
@@ -196,27 +207,32 @@ class UserAPI:
 
     @staticmethod
     def create_account(
-            session: Session,
-            user: User,
-            user_auth: UserAuth = None
+        session: Session,
+        user: User,
+        user_auth: UserAuth = None
     ) -> APIErr:
         r"""创建账号,user_uuid会自动生成,不用输入
         """
-        user_uuid = create_uuid()
+        user_uuid = create_usr_uuid()
+
         # 唯一性判断
-        if (rsp := check_account_unique(session, user_uuid, user.account, user.phone_enc, is_insert=True)) != APIErr.NO_ERROR:
-            return rsp
+        if (result := check_account_unique(session, user_uuid, user.account, user.phone_enc, is_insert=True)) != APIErr.NO_ERROR:
+            return result
+
         user.user_uuid = user_uuid
 
-        # 认证类型设定
-        if user_auth:
-            user_auth.user_uuid = user_uuid
-        else:
-            user_auth = UserAuth(user_uuid=user_uuid,
-                                 auth_value=hash_api.hash(settings.default_passwd))
-
         try:
-            session.add_all([user, user_auth])
+            session.add(user)
+            session.flush()
+
+            # 认证类型设定
+            if user_auth:
+                user_auth.user_id = user.id
+            else:
+                user_auth = UserAuth(user_id=user.id,
+                                     auth_value=hash_api.hash(settings.default_passwd))
+
+            session.add(user_auth)
             session.commit()
         except Exception as e:
             session.rollback()
@@ -229,7 +245,7 @@ class UserAPI:
         session: Session,
         user_uuid: str,
         nickname: str,
-        user_status: OptUserStatus
+        account_status: OptAccountStatus
     ) -> APIErr:
         r"""修改账号
         """
@@ -240,7 +256,7 @@ class UserAPI:
 
         stmt = update(User).where(User.user_uuid == user_uuid).values(
             nickname=nickname,
-            user_status=user_status.value
+            account_status=account_status.value
         )
 
         try:

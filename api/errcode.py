@@ -8,3 +8,6 @@ class APIErr:
     ROLE_EXISTED = dict(code=6, message="角色已存在")
     ORG_USER_STATUS_DISABLE = dict(code=7, message="组织用户被停用")
     USER_UUID_EXISTED = dict(code=8, message="用户UUID已存在,请重试")
+    ORG_UUID_EXISTED = dict(code=9, message="组织UUID已存在,请重试")
+    ORG_NAME_EXISTED = dict(code=10, message="组织名称已存在")
+    ORG_OWNER_NOT_EXISTED = dict(code=11, message="不存在该用户")

@@ -60,15 +60,14 @@ class User(ModelPrimaryKeyID, ModelBase):
 class UserAuth(ModelPrimaryKeyID, ModelBase):
     __tablename__ = "t_user_auth"
     __table_args__ = (
-        UniqueConstraint("user_uuid", "auth_type",
+        UniqueConstraint("user_id", "auth_type",
                          "auth_identify", name="uni_user_auth"),
         dict(comment="用户认证信息")
     )
 
-    user_uuid: M[str] = mc(
-        User.user_uuid.type,
-        default="",
-        comment="用户UUID"
+    user_id: M[int] = mc(
+        User.id.type,
+        comment="用户ID"
     )
 
     auth_type: M[int] = mc(

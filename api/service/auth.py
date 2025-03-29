@@ -7,7 +7,7 @@ from api.config import settings
 from api.deps import Rsp, JwtPayload, get_db_session
 from api.errcode import APIErr
 from api.security import client_aes_api, hash_api, jwt_api
-from api.model.user import User, UserAuth, OptUserStatus
+from api.model.user import User, UserAuth, OptAccountStatus
 from api.model.org import Org, OrgUser, OptOrgUserStatus
 from api.schema.user import UserAPI
 from api.schema.org import OrgAPI
@@ -23,6 +23,10 @@ class PasswordLogin(BaseModel):
                               max_length=UserAuth.auth_value.type.length)
 
 
+def check_org_owner(target, src) -> bool:
+    return target == src
+
+
 def password_login(session: Session, account: str, password: str, org_uuid: str = None) -> Rsp:
     r"""通过密码完成认证
 
@@ -32,7 +36,7 @@ def password_login(session: Session, account: str, password: str, org_uuid: str 
         password:密码
         org_uuid:指定登录的组织UUID
 
-    Return:
+    Returns:
         Rsp{
             code: 业务返回码
             message: 业务返回信息
@@ -47,15 +51,15 @@ def password_login(session: Session, account: str, password: str, org_uuid: str 
         return Rsp(**APIErr.WRONG_ACCOUNT_PASSWD)
 
     # 如果账号状态不可用
-    if OptUserStatus.DISABLE.value == account_auth["user_status"]:
+    if OptAccountStatus.DISABLE.value == account_auth["account_status"]:
         return Rsp(**APIErr.ACCOUNT_STATUS_DISABLE)
 
     user_uuid = account_auth["user_uuid"]
-    is_admin = False
+    is_org_owner = False
 
     if org_uuid:
         # 如果指定了登录的组织UUID
-        select_fields = [OrgUser.org_user_status, Org.org_owner]
+        select_fields = [OrgUser.org_user_status, Org.org_owner_uuid]
         org_user = OrgAPI.get_org_user_detail(
             session, org_uuid, user_uuid, select_fields)
         if not org_user:
@@ -64,21 +68,22 @@ def password_login(session: Session, account: str, password: str, org_uuid: str 
         if OptOrgUserStatus.DISABLE.value == org_user["org_user_status"]:
             # 组织下该用户账号被停用
             return Rsp(**APIErr.ORG_USER_STATUS_DISABLE)
-        is_admin = True if org_user["org_owner"] == user_uuid else False
+        is_org_owner = check_org_owner(org_user["org_owner_uuid"], user_uuid)
     else:
-        select_fields = [OrgUser.org_uuid,
-                         OrgUser.org_user_status, Org.org_owner]
+        select_fields = [Org.org_uuid,
+                         OrgUser.org_user_status, Org.org_owner_uuid]
         user_org_list = UserAPI.get_user_org_list(
             session, user_uuid, select_fields)
 
-        if 1 == len(user_org_list) and OptOrgUserStatus.ENABLE.value == user_org_list[0]["org_user_status"]:
+        if len(user_org_list) == 1 and OptOrgUserStatus.ENABLE.value == user_org_list[0]["org_user_status"]:
             # 仅有一个组织,且账户未被组织停用
             org_uuid = user_org_list[0]["org_uuid"]
-            is_admin = True if user_org_list[0]["org_owner"] == user_uuid else False
+            is_org_owner = check_org_owner(
+                user_uuid, user_org_list[0]["org_owner_uuid"])
 
     payload = JwtPayload(user_uuid=user_uuid,
                          org_uuid=org_uuid,
-                         is_admin=is_admin)
+                         is_org_owner=is_org_owner)
     data = jwt_api.encode(**asdict(payload))
     return Rsp(data=data)
 
@@ -97,7 +102,7 @@ def login(
     return rsp
 
 
-@api.post("/docs_login", summary="网页登录(后续移除)")
+@api.post("/docs_login", summary="网页登录(仅限测试环境)")
 async def docs_login(
     session=Depends(get_db_session),
     req_data=Depends(OAuth2PasswordRequestForm)

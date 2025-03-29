@@ -7,7 +7,7 @@ from api.model.role import Role, OptRoleStatus
 
 
 def check_role_unique(session: Session, role_name: str, role_org_uuid: str, role_id: int = None) -> APIErr:
-    """判断角色是否唯一, 在同一个组织下,角色名必须唯一
+    """判断角色是否唯一, 在同一个应用下,角色名必须唯一
     """
     stmt = select(Role.id).where(
         Role.is_deleted == False,
@@ -29,6 +29,7 @@ class RoleAPI:
     def get_role_list(
         session: Session,
         pagination: Pagination,
+        app_id: int,
         role_name: str = None,
         role_status: OptRoleStatus = None,
         select_fields: list = None
@@ -51,6 +52,7 @@ class RoleAPI:
             *select_fields
         ).where(
             Role.is_deleted == False,
+            Role.app_id == app_id,
             Role.role_org_uuid == "",
             *expressions
         )

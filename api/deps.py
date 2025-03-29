@@ -22,8 +22,8 @@ class JwtPayload:
     user_uuid: str
     # 组织标识
     org_uuid: str = ""
-    # 超级管理员标识(最大权限给于)
-    is_admin: bool = False
+    # 是否为登录组织的Owner(跳过鉴权认证)
+    is_org_owner: bool = False
     client_id: str = ""
 
 
@@ -83,8 +83,8 @@ def get_actor_info(security_scope: SecurityScopes,
             org_uuid=payload["org_uuid"]
         )
 
-        # 如果是超级管理员用户,则无需鉴权
-        if payload["is_admin"]:
+        # 如果是组织Owner,则无需鉴权
+        if payload["is_org_owner"]:
             return actor
 
         # 获取用户的可用授权范围
